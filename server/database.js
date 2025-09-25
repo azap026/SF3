@@ -58,7 +58,7 @@ function buildSslConfig(dbMeta) {
     try { ca = fs.readFileSync(caPath).toString(); } catch (e) { console.warn('⚠️ Не удалось прочитать CA сертификат:', e.message); }
   }
 
-  const base = { rejectUnauthorized: sslMode === 'verify-full' || sslMode === 'verify-ca', ca };
+  const base = { rejectUnauthorized: false, ca };
   if (sslMode === 'require' || sslMode === 'prefer') base.rejectUnauthorized = false;
   return base;
 }
