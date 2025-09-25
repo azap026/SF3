@@ -3,6 +3,9 @@ import fs from 'fs';
 import dotenv from 'dotenv';
 import path from 'path';
 
+// Отключаем проверку SSL сертификатов для Node.js
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
 // Явная загрузка .env из текущей папки server
 const envPath = path.resolve('.env');
 dotenv.config({ path: envPath });
@@ -58,8 +61,10 @@ function buildSslConfig(dbMeta) {
     try { ca = fs.readFileSync(caPath).toString(); } catch (e) { console.warn('⚠️ Не удалось прочитать CA сертификат:', e.message); }
   }
 
-  const base = { rejectUnauthorized: sslMode === 'verify-full' || sslMode === 'verify-ca', ca };
+  const base = { rejectUnauthorized: false, ca };
   if (sslMode === 'require' || sslMode === 'prefer') base.rejectUnauthorized = false;
+  // Для Aiven всегда отключаем проверку сертификата
+  base.rejectUnauthorized = false;
   return base;
 }
 
@@ -84,6 +89,12 @@ let initialSsl = buildSslConfig(dbMeta);
 
 function createPool(overrideSsl) {
   const effectiveSsl = typeof overrideSsl !== 'undefined' ? overrideSsl : initialSsl;
+  // Принудительно отключаем проверку SSL для Aiven
+  const sslConfig = { 
+    rejectUnauthorized: false,
+    checkServerIdentity: () => undefined
+  };
+  
   const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     max: parseInt(process.env.PG_POOL_MAX || '10', 10),
@@ -93,7 +104,7 @@ function createPool(overrideSsl) {
     statement_timeout: parseInt(process.env.PG_STATEMENT_TIMEOUT || '10000', 10),
     keepAlive: true,
     keepAliveInitialDelayMillis: 10000,
-    ssl: effectiveSsl
+    ssl: sslConfig
   });
 
   pool.on('connect', () => {
